@@ -25,7 +25,7 @@ export default definePlugin((serverApi: ServerAPI) => {
 
     appendStyles(SP_Window)
     serverApi.routerHook.addRoute(routePath, () => { return <TabbedBrowser tabManager={tabManager} /> })
-    const unpatchMenu = patchMenu()
+    const unpatchMenu = patchMenu(serverApi)
     patchSearchBar()
     const unregisterOnResume = SteamClient.System.RegisterForOnResumeFromSuspend(patchSearchBar).unregister
     const unregisterForAppLifetime = SteamClient.GameSessions.RegisterForAppLifetimeNotifications(patchSearchBar).unregister

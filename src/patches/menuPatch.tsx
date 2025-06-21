@@ -1,4 +1,4 @@
-import { FooterLegendProps, afterPatch, findInReactTree } from "decky-frontend-lib"
+import { FooterLegendProps, afterPatch, findInReactTree, ServerAPI } from "decky-frontend-lib"
 import { getReactTree, routePath } from "../init"
 import { FC, ReactElement, ReactNode, useState } from "react"
 import { PluginIcon } from "../components/native-components/PluginIcon"
@@ -15,7 +15,12 @@ interface MainMenuItemProps extends FooterLegendProps {
     onActivate?: () => void
 }
 
-export const patchMenu = () => {
+interface MenuItemWrapperProps extends MainMenuItemProps {
+    MenuItemComponent: FC<MainMenuItemProps>
+    serverAPI: ServerAPI
+}
+
+export const patchMenu = (serverAPI: ServerAPI) => {
     const menuNode = findInReactTree(getReactTree(), (node) => node?.memoizedProps?.navID == 'MainNavMenuContainer')
     if (!menuNode || !menuNode.return?.type) {
         logN('Menu Patch', 'Failed to find main menu root node.')
@@ -39,23 +44,24 @@ export const patchMenu = () => {
                 }
                 const itemIndexes = getMenuItemIndexes(ret.props.children)
                 const menuItemElement = findInReactTree(ret.props.children, (x) =>
-                    x?.type?.toString()?.includes('exactRouteMatch:'),
+                x?.type?.toString()?.includes('exactRouteMatch:'),
                 );
 
                 const newItem =
-                    <MenuItemWrapper
-                        route={routePath}
-                        label='Browser'
-                        onFocus={menuItemElement.props.onFocus}
-                        MenuItemComponent={menuItemElement.type}
-                    />
+                <MenuItemWrapper
+                route={routePath}
+                label='Kodi'  // Changed from 'Browser' to 'Kodi'
+            onFocus={menuItemElement.props.onFocus}
+            MenuItemComponent={menuItemElement.type}
+            serverAPI={serverAPI}
+            />
 
-                const browserPosition = settingsManager.settings.menuPosition
+            const browserPosition = settingsManager.settings.menuPosition
 
-                if (browserPosition === 9) ret.props.children.splice(itemIndexes[itemIndexes.length - 1] + 1, 0, newItem)
+            if (browserPosition === 9) ret.props.children.splice(itemIndexes[itemIndexes.length - 1] + 1, 0, newItem)
                 else ret.props.children.splice(itemIndexes[browserPosition - 1], 0, newItem)
 
-                return ret
+                    return ret
             })
             patchedInnerMenu = ret.props.children.props.children[0].type
         }
@@ -76,28 +82,35 @@ function getMenuItemIndexes(items: any[]) {
     return items.flatMap((item, index) => (item && item.$$typeof && item.type !== 'div') ? index : [])
 }
 
-interface MenuItemWrapperProps extends MainMenuItemProps {
-    MenuItemComponent: FC<MainMenuItemProps>
-}
-
-const MenuItemWrapper: FC<MenuItemWrapperProps> = ({ MenuItemComponent, label, ...props }) => {
+const MenuItemWrapper: FC<MenuItemWrapperProps> = ({ MenuItemComponent, label, serverAPI, ...props }) => {
     const [_, setState] = useState(false)
+
+    const handleLaunchKodi = async () => {
+        try {
+            const result = await serverAPI!.callPluginMethod("launch_kodi", {});
+            if (!result.success) {
+                console.error("Failed to launch Kodi:", result.result);
+            }
+        } catch (error) {
+            console.error("Error calling launch_kodi:", error);
+        }
+    };
 
     const labelElement = (
         <div style={{ display: 'flex', width: '150px', justifyContent: 'space-between' }}>
-            <div>{label}</div>
-            <div style={{ fontSize: '11px' }}>{(status.running && tabManager.tabHandlers.length) || ''}</div>
+        <div>{label}</div>
+        <div style={{ fontSize: '11px' }}>{(status.running && tabManager.tabHandlers.length) || ''}</div>
         </div>
     );
 
     return (
         <MenuItemComponent
-            {...props}
-            label={labelElement}
-            onSecondaryActionDescription={status.running ? 'Kill Browser' : ''}
-            onSecondaryButton={status.running ? () => killBrowser(() => setState((state => !state))) : undefined}
+        {...props}
+        label={labelElement}
+        onSecondaryActionDescription={status.running ? 'Kill Browser' : ''}
+        onSecondaryButton={handleLaunchKodi}
         >
-            <PluginIcon style={status.running ? { filter: 'drop-shadow(rgb(50, 255, 180) 0px 0px 8px)' } : {}} />
+        <PluginIcon style={status.running ? { filter: 'drop-shadow(rgb(50, 255, 180) 0px 0px 8px)' } : {}} />
         </MenuItemComponent>
     )
 }
